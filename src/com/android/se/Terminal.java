@@ -40,6 +40,7 @@ import android.se.omapi.ISecureElementReader;
 import android.se.omapi.ISecureElementSession;
 import android.se.omapi.SEService;
 import android.util.Log;
+import android.util.StatsLog;
 
 import com.android.se.SecureElementService.SecureElementSession;
 import com.android.se.internal.ByteArrayConverter;
@@ -81,34 +82,65 @@ public class Terminal {
     private ISecureElementHalCallback.Stub mHalCallback = new ISecureElementHalCallback.Stub() {
         @Override
         public void onStateChange(boolean state) {
-            synchronized (mLock) {
-                Log.i(mTag, "OnStateChange:" + state);
-                mIsConnected = state;
-                if (!state) {
-                    if (mAccessControlEnforcer != null) {
-                        mAccessControlEnforcer.reset();
-                    }
-                } else {
-                    // If any logical channel in use is in the channel list, it should be closed
-                    // because the access control enfocer allowed to open it by checking the access
-                    // rules retrieved before. Now we are going to retrieve the rules again and
-                    // the new rules can be different from the previous ones.
-                    closeChannels();
-                    try {
-                        initializeAccessControl();
-                    } catch (Exception e) {
-                        // ignore
-                    }
-                    mDefaultApplicationSelectedOnBasicChannel = true;
-                }
-            }
+            stateChange(state, "");
         }
     };
+
+    private android.hardware.secure_element.V1_1.ISecureElementHalCallback.Stub mHalCallback11 =
+            new android.hardware.secure_element.V1_1.ISecureElementHalCallback.Stub() {
+        @Override
+        public void onStateChange_1_1(boolean state, String reason) {
+            stateChange(state, reason);
+        }
+
+        public void onStateChange(boolean state) {
+            return;
+        }
+    };
+
+    private void stateChange(boolean state, String reason) {
+        synchronized (mLock) {
+            Log.i(mTag, "OnStateChange:" + state + " reason:" + reason);
+            mIsConnected = state;
+            if (!state) {
+                if (mAccessControlEnforcer != null) {
+                    mAccessControlEnforcer.reset();
+                }
+                StatsLog.write(
+                        StatsLog.SE_STATE_CHANGED,
+                        StatsLog.SE_STATE_CHANGED__STATE__DISCONNECTED,
+                        reason,
+                        mName);
+            } else {
+                // If any logical channel in use is in the channel list, it should be closed
+                // because the access control enfocer allowed to open it by checking the access
+                // rules retrieved before. Now we are going to retrieve the rules again and
+                // the new rules can be different from the previous ones.
+                closeChannels();
+                try {
+                    initializeAccessControl();
+                } catch (Exception e) {
+                    // ignore
+                }
+                mDefaultApplicationSelectedOnBasicChannel = true;
+                StatsLog.write(
+                        StatsLog.SE_STATE_CHANGED,
+                        StatsLog.SE_STATE_CHANGED__STATE__CONNECTED,
+                        reason,
+                        mName);
+            }
+        }
+    }
 
     class SecureElementDeathRecipient implements HwBinder.DeathRecipient {
         @Override
         public void serviceDied(long cookie) {
             Log.e(mTag, mName + " died");
+            StatsLog.write(
+                    StatsLog.SE_STATE_CHANGED,
+                    StatsLog.SE_STATE_CHANGED__STATE__HALCRASH,
+                    "HALCRASH",
+                    mName);
             synchronized (mLock) {
                 mIsConnected = false;
                 if (mAccessControlEnforcer != null) {
@@ -155,14 +187,34 @@ public class Terminal {
      */
     public void initialize() throws NoSuchElementException, RemoteException {
         synchronized (mLock) {
-            mSEHal = ISecureElement.getService(mName, true);
-            if (mSEHal == null) {
-                throw new NoSuchElementException("No HAL is provided for " + mName);
+            android.hardware.secure_element.V1_1.ISecureElement seHal11 = null;
+            try {
+                seHal11 =
+                        android.hardware.secure_element.V1_1.ISecureElement.getService(mName, true);
+            } catch (Exception e) {
+                Log.d(mTag, "SE Hal V1.1 is not supported");
             }
-            mSEHal.init(mHalCallback);
+
+            if (seHal11 == null) {
+                mSEHal = ISecureElement.getService(mName, true);
+                if (mSEHal == null) {
+                    throw new NoSuchElementException("No HAL is provided for " + mName);
+                }
+            }
+            if (seHal11 != null) {
+                seHal11.init_1_1(mHalCallback11);
+                mSEHal = seHal11;
+            } else {
+                mSEHal.init(mHalCallback);
+            }
             mSEHal.linkToDeath(mDeathRecipient, 0);
         }
         Log.i(mTag, mName + " was initialized");
+        StatsLog.write(
+                StatsLog.SE_STATE_CHANGED,
+                StatsLog.SE_STATE_CHANGED__STATE__INITIALIZED,
+                "INIT",
+                mName);
     }
 
     private ArrayList<Byte> byteArrayToArrayList(byte[] array) {
@@ -328,6 +380,11 @@ public class Terminal {
         }
 
         Log.w(mTag, "Enable access control on basic channel for " + packageName);
+        StatsLog.write(
+                StatsLog.SE_OMAPI_REPORTED,
+                StatsLog.SE_OMAPI_REPORTED__OPERATION__OPEN_CHANNEL,
+                mName,
+                packageName);
         ChannelAccess channelAccess;
         try {
             channelAccess = setUpChannelAccess(aid, packageName, pid);
@@ -410,6 +467,11 @@ public class Terminal {
         ChannelAccess channelAccess = null;
         if (packageName != null) {
             Log.w(mTag, "Enable access control on logical channel for " + packageName);
+            StatsLog.write(
+                    StatsLog.SE_OMAPI_REPORTED,
+                    StatsLog.SE_OMAPI_REPORTED__OPERATION__OPEN_CHANNEL,
+                    mName,
+                    packageName);
             try {
                 channelAccess = setUpChannelAccess(aid, packageName, pid);
             } catch (MissingResourceException e) {
