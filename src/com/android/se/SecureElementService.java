@@ -158,7 +158,9 @@ public final class SecureElementService extends Service {
             do {
                 name = terminalName + Integer.toString(index);
                 Terminal terminal = new Terminal(name, this);
-                terminal.initialize();
+
+                // Only retry on fail for the first terminal of each type.
+                terminal.initialize(index == 1);
                 mTerminals.put(name, terminal);
             } while (++index > 0);
         } catch (NoSuchElementException e) {
@@ -261,9 +263,6 @@ public final class SecureElementService extends Service {
                 throw new IllegalStateException("Session is closed");
             } else if (listener == null) {
                 throw new NullPointerException("listener must not be null");
-            } else if (mReader.getTerminal().getName().startsWith(
-                    SecureElementService.UICC_TERMINAL)) {
-                return null;
             } else if ((p2 != 0x00) && (p2 != 0x04) && (p2 != 0x08)
                     && (p2 != (byte) 0x0C)) {
                 throw new UnsupportedOperationException("p2 not supported: "
