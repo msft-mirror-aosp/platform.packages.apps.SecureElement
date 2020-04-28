@@ -49,31 +49,15 @@ public class AR_DO extends BerTlv {
 
     private APDU_AR_DO mApduAr = null;
     private NFC_AR_DO mNfcAr = null;
-    private PERM_AR_DO mPermAr = null;
 
     public AR_DO(byte[] rawData, int valueIndex, int valueLength) {
         super(rawData, TAG, valueIndex, valueLength);
-    }
-
-    public AR_DO(APDU_AR_DO apduArDo, NFC_AR_DO nfcArDo, PERM_AR_DO permArDo) {
-        super(null, TAG, 0, 0);
-        mApduAr = apduArDo;
-        mNfcAr = nfcArDo;
-        mPermAr = permArDo;
     }
 
     public AR_DO(APDU_AR_DO apduArDo, NFC_AR_DO nfcArDo) {
         super(null, TAG, 0, 0);
         mApduAr = apduArDo;
         mNfcAr = nfcArDo;
-        mPermAr = null;
-    }
-
-    public AR_DO(PERM_AR_DO permArDo) {
-        super(null, TAG, 0, 0);
-        mApduAr = null;
-        mNfcAr = null;
-        mPermAr = permArDo;
     }
 
     public APDU_AR_DO getApduArDo() {
@@ -84,27 +68,19 @@ public class AR_DO extends BerTlv {
         return mNfcAr;
     }
 
-    public PERM_AR_DO getPermArDo() {
-        return mPermAr;
-    }
-
     @Override
     /**
      * Interpret value.
      *
      * <p>Tag: E3
      *
-     * <p>Value:
-     *     1. Value can contain APDU-AR-DO or NFC-AR-DO or APDU-AR-DO | NFC-AR-DO A
-     *        concatenation of one or two AR-DO(s). If two AR-DO(s) are present these must have
-     *        different types.
-     *     2. PERM-AR-DO
+     * <p>Value: Value can contain APDU-AR-DO or NFC-AR-DO or APDU-AR-DO | NFC-AR-DO A concatenation
+     * of one or two AR-DO(s). If two AR-DO(s) are present these must have different types.
      */
     public void interpret() throws ParserException {
 
         this.mApduAr = null;
         this.mNfcAr = null;
-        this.mPermAr = null;
 
         byte[] data = getRawData();
         int index = getValueIndex();
@@ -122,9 +98,6 @@ public class AR_DO extends BerTlv {
             } else if (temp.getTag() == NFC_AR_DO.TAG) { // NFC-AR-DO
                 mNfcAr = new NFC_AR_DO(data, temp.getValueIndex(), temp.getValueLength());
                 mNfcAr.interpret();
-            } else if (temp.getTag() == PERM_AR_DO.TAG) { // PERM-AR-DO
-                mPermAr = new PERM_AR_DO(data, temp.getValueIndex(), temp.getValueLength());
-                mPermAr.interpret();
             } else {
                 // un-comment following line if a more restrictive
                 // behavior is necessary.
@@ -133,7 +106,7 @@ public class AR_DO extends BerTlv {
             index = temp.getValueIndex() + temp.getValueLength();
         } while (getValueIndex() + getValueLength() > index);
 
-        if (mApduAr == null && mNfcAr == null && mPermAr == null) {
+        if (mApduAr == null && mNfcAr == null) {
             throw new ParserException("No valid DO in AR-DO!");
         }
     }
@@ -144,11 +117,8 @@ public class AR_DO extends BerTlv {
      *
      * <p>Tag: E3
      *
-     * <p>Value:
-     *     1. Value can contain APDU-AR-DO or NFC-AR-DO or APDU-AR-DO | NFC-AR-DO A
-     *        concatenation of one or two AR-DO(s). If two AR-DO(s) are present these must have
-     *        different types.
-     *     2. PERM-AR-DO
+     * <p>Value: Value can contain APDU-AR-DO or NFC-AR-DO or APDU-AR-DO | NFC-AR-DO A concatenation
+     * of one or two AR-DO(s). If two AR-DO(s) are present these must have different types.
      */
     public void build(ByteArrayOutputStream stream) throws DO_Exception {
 
@@ -162,10 +132,6 @@ public class AR_DO extends BerTlv {
 
         if (mNfcAr != null) {
             mNfcAr.build(temp);
-        }
-
-        if (mPermAr != null) {
-            mPermAr.build(temp);
         }
 
         BerTlv.encodeLength(temp.size(), stream);

@@ -4,11 +4,10 @@
           android:sharedUserId="android.uid.se">
     <application android:name=".SEApplication"
                  android:label="SecureElementApplication"
-                 android:persistent="true"
-                 android:directBootAware="true">
+                 android:persistent="true">
         <service android:name=".SecureElementService">
             <intent-filter>
-                <action android:name="android.se.omapi.ISecureElementService"/>
+                <action android:name="android.omapi.ISecureElementService"/>
             </intent-filter>
         </service>
     </application>
