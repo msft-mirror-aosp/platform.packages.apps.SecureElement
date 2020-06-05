@@ -508,7 +508,7 @@ public class Terminal {
                     packageName);
             try {
                 channelAccess = setUpChannelAccess(aid, packageName, pid, false);
-            } catch (MissingResourceException e) {
+            } catch (MissingResourceException | UnsupportedOperationException e) {
                 return null;
             }
         }
@@ -750,6 +750,10 @@ public class Terminal {
             }
             if (isBasicChannel) {
                 throw new MissingResourceException("openBasicChannel is not allowed.", "", "");
+            } else if (aid == null) {
+                // openLogicalChannel with null aid is only allowed for privilege applications
+                throw new UnsupportedOperationException(
+                        "null aid is not accepted in UICC terminal.");
             }
         }
 
