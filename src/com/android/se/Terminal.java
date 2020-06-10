@@ -52,6 +52,7 @@ import com.android.se.security.ChannelAccess;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -76,6 +77,9 @@ public class Terminal {
     private static final int GET_SERVICE_DELAY_MILLIS = 4 * 1000;
     private static final int EVENT_GET_HAL = 1;
 
+    private final int mMaxGetHalRetryCount = 5;
+    private int mGetHalRetryCount = 0;
+
     private ISecureElement mSEHal;
     private android.hardware.secure_element.V1_2.ISecureElement mSEHal12;
 
@@ -84,6 +88,26 @@ public class Terminal {
 
     private static final String SECURE_ELEMENT_PRIVILEGED_OPERATION_PERMISSION =
             "android.permission.SECURE_ELEMENT_PRIVILEGED_OPERATION";
+
+    public static final byte[] ISD_R_AID =
+            new byte[]{
+                    (byte) 0xA0,
+                    (byte) 0x00,
+                    (byte) 0x00,
+                    (byte) 0x05,
+                    (byte) 0x59,
+                    (byte) 0x10,
+                    (byte) 0x10,
+                    (byte) 0xFF,
+                    (byte) 0xFF,
+                    (byte) 0xFF,
+                    (byte) 0xFF,
+                    (byte) 0x89,
+                    (byte) 0x00,
+                    (byte) 0x00,
+                    (byte) 0x01,
+                    (byte) 0x00,
+            };
 
     private ISecureElementHalCallback.Stub mHalCallback = new ISecureElementHalCallback.Stub() {
         @Override
@@ -166,11 +190,20 @@ public class Terminal {
             switch (message.what) {
                 case EVENT_GET_HAL:
                     try {
-                        initialize(true);
+                        if (mName.startsWith(SecureElementService.ESE_TERMINAL)) {
+                            initialize(true);
+                        } else {
+                            initialize(false);
+                        }
                     } catch (Exception e) {
                         Log.e(mTag, mName + " could not be initialized again");
-                        sendMessageDelayed(obtainMessage(EVENT_GET_HAL, 0),
-                                GET_SERVICE_DELAY_MILLIS);
+                        if (mGetHalRetryCount < mMaxGetHalRetryCount) {
+                            mGetHalRetryCount++;
+                            sendMessageDelayed(obtainMessage(EVENT_GET_HAL, 0),
+                                    GET_SERVICE_DELAY_MILLIS);
+                        } else {
+                            Log.e(mTag, mName + " reach maximum retry count");
+                        }
                     }
                     break;
                 default:
@@ -407,7 +440,9 @@ public class Terminal {
                     mName,
                     packageName);
             try {
-                channelAccess = setUpChannelAccess(aid, packageName, pid);
+                // For application without privilege permission or carrier privilege,
+                // openBasicChannel with UICC terminals should be rejected.
+                channelAccess = setUpChannelAccess(aid, packageName, pid, true);
             } catch (MissingResourceException e) {
                 return null;
             }
@@ -494,8 +529,8 @@ public class Terminal {
                     mName,
                     packageName);
             try {
-                channelAccess = setUpChannelAccess(aid, packageName, pid);
-            } catch (MissingResourceException e) {
+                channelAccess = setUpChannelAccess(aid, packageName, pid, false);
+            } catch (MissingResourceException | UnsupportedOperationException e) {
                 return null;
             }
         }
@@ -700,8 +735,8 @@ public class Terminal {
     /**
      * Initialize the Access Control and set up the channel access.
      */
-    private ChannelAccess setUpChannelAccess(byte[] aid, String packageName, int pid)
-            throws IOException, MissingResourceException {
+    private ChannelAccess setUpChannelAccess(byte[] aid, String packageName, int pid,
+            boolean isBasicChannel) throws IOException, MissingResourceException {
         boolean checkRefreshTag = true;
         if (isPrivilegedApplication(packageName)) {
             return ChannelAccess.getPrivilegeAccess(packageName, pid);
@@ -718,22 +753,31 @@ public class Terminal {
         }
         mAccessControlEnforcer.setPackageManager(mContext.getPackageManager());
 
-        if (getName().startsWith(SecureElementService.UICC_TERMINAL)) {
+        // Check carrier privilege when AID is not ISD-R
+        if (getName().startsWith(SecureElementService.UICC_TERMINAL)
+                && !Arrays.equals(aid, ISD_R_AID)) {
             try {
                 PackageManager pm = mContext.getPackageManager();
                 if (pm != null) {
                     PackageInfo pkgInfo =
                             pm.getPackageInfo(packageName, PackageManager.GET_SIGNATURES);
-                    if (mAccessControlEnforcer.checkCarrierPrivilege(pkgInfo, checkRefreshTag)) {
+                    // Do not check the refresh tag for carrier privilege
+                    if (mAccessControlEnforcer.checkCarrierPrivilege(pkgInfo, false)) {
                         Log.i(mTag, "setUp PrivilegeAccess for CarrierPrivilegeApplication. ");
                         return ChannelAccess.getCarrierPrivilegeAccess(packageName, pid);
                     }
-                    checkRefreshTag = false;
                 }
             } catch (NameNotFoundException ne) {
                 Log.e(mTag, "checkCarrierPrivilege(): packageInfo is not found. ");
             } catch (Exception e) {
                 Log.e(mTag, "checkCarrierPrivilege() Exception: " + e.getMessage());
+            }
+            if (isBasicChannel) {
+                throw new MissingResourceException("openBasicChannel is not allowed.", "", "");
+            } else if (aid == null) {
+                // openLogicalChannel with null aid is only allowed for privilege applications
+                throw new UnsupportedOperationException(
+                        "null aid is not accepted in UICC terminal.");
             }
         }
 
