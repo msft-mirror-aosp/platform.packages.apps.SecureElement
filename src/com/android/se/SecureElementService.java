@@ -22,6 +22,7 @@
 
 package com.android.se;
 
+import android.app.ActivityManager;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -34,6 +35,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.ServiceSpecificException;
+import android.os.UserHandle;
 import android.se.omapi.ISecureElementChannel;
 import android.se.omapi.ISecureElementListener;
 import android.se.omapi.ISecureElementReader;
@@ -133,7 +135,10 @@ public final class SecureElementService extends Service {
                 throw new IllegalArgumentException("package names not specified");
             }
             Terminal terminal = getTerminal(reader);
-            return terminal.isNfcEventAllowed(getPackageManager(), aid, packageNames);
+            UserHandle currentUser = new UserHandle(ActivityManager.getCurrentUser());
+            return terminal.isNfcEventAllowed(
+                    createContextAsUser(currentUser, /*flags=*/0).getPackageManager(),
+                    aid, packageNames);
         }
 
         @Override
