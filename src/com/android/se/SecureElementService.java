@@ -45,6 +45,7 @@ import android.util.Log;
 
 import com.android.se.Terminal.SecureElementReader;
 import com.android.se.internal.ByteArrayConverter;
+import com.android.se.security.HalRefDoParser;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -244,6 +245,16 @@ public final class SecureElementService extends Service {
         throw new AccessControlException("PackageName can not be determined");
     }
 
+    private byte[] getUUIDFromCallingUid(int uid) {
+        byte[] uuid = HalRefDoParser.getInstance().findUUID(Binder.getCallingUid());
+
+        if (uuid != null) {
+            return uuid;
+        }
+
+        return null;
+    }
+
     final class SecureElementSession extends ISecureElementSession.Stub {
 
         private final SecureElementReader mReader;
@@ -326,12 +337,26 @@ public final class SecureElementService extends Service {
                         + String.format("%02x ", p2 & 0xFF));
             }
 
-            String packageName = getPackageNameFromCallingUid(Binder.getCallingUid());
+            String packageName = null;
+            byte[] uuid = null;
+            try {
+                packageName = getPackageNameFromCallingUid(Binder.getCallingUid());
+            } catch (AccessControlException e) {
+                // Since packageName not found for calling process, try to find UUID mapping
+                // provided by vendors for the calling process UID
+                // (vendor provide UUID mapping for native services to access secure element)
+                Log.d(mTag, "openBasicChannel() trying to find mapping uuid");
+                uuid = getUUIDFromCallingUid(Binder.getCallingUid());
+                if (uuid == null) {
+                    Log.e(mTag, "openBasicChannel() uuid mapping for calling uid is not found");
+                    throw e;
+                }
+            }
             Channel channel = null;
 
             try {
                 channel = mReader.getTerminal().openBasicChannel(this, aid, p2, listener,
-                        packageName, Binder.getCallingPid());
+                        packageName, uuid, Binder.getCallingPid());
             } catch (IOException e) {
                 throw new ServiceSpecificException(SEService.IO_ERROR, e.getMessage());
             } catch (NoSuchElementException e) {
@@ -368,12 +393,26 @@ public final class SecureElementService extends Service {
                         + String.format("%02x ", p2 & 0xFF));
             }
 
-            String packageName = getPackageNameFromCallingUid(Binder.getCallingUid());
+            String packageName = null;
+            byte[] uuid = null;
+            try {
+                packageName = getPackageNameFromCallingUid(Binder.getCallingUid());
+            } catch (AccessControlException e) {
+                // Since packageName not found for calling process, try to find UUID mapping
+                // provided by vendors for the calling process UID
+                // (vendor provide UUID mapping for native services to access secure element)
+                Log.d(mTag, "openLogicalChannel() trying to find mapping uuid");
+                uuid = getUUIDFromCallingUid(Binder.getCallingUid());
+                if (uuid == null) {
+                    Log.e(mTag, "openLogicalChannel() uuid mapping for calling uid is not found");
+                    throw e;
+                }
+            }
             Channel channel = null;
 
             try {
                 channel = mReader.getTerminal().openLogicalChannel(this, aid, p2, listener,
-                        packageName, Binder.getCallingPid());
+                        packageName, uuid, Binder.getCallingPid());
             } catch (IOException e) {
                 throw new ServiceSpecificException(SEService.IO_ERROR, e.getMessage());
             } catch (NoSuchElementException e) {
