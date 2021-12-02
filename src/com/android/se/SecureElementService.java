@@ -34,6 +34,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.ServiceSpecificException;
+import android.os.UserHandle;
 import android.se.omapi.ISecureElementChannel;
 import android.se.omapi.ISecureElementListener;
 import android.se.omapi.ISecureElementReader;
@@ -121,8 +122,8 @@ public final class SecureElementService extends Service {
         }
 
         @Override
-        public synchronized boolean[] isNFCEventAllowed(String reader, byte[] aid,
-                String[] packageNames) throws RemoteException {
+        public synchronized boolean[] isNfcEventAllowed(String reader, byte[] aid,
+                String[] packageNames, int userId) throws RemoteException {
             if (aid == null || aid.length == 0) {
                 aid = new byte[]{0x00, 0x00, 0x00, 0x00, 0x00};
             }
@@ -133,7 +134,9 @@ public final class SecureElementService extends Service {
                 throw new IllegalArgumentException("package names not specified");
             }
             Terminal terminal = getTerminal(reader);
-            return terminal.isNfcEventAllowed(getPackageManager(), aid, packageNames);
+            return terminal.isNfcEventAllowed(
+                    createContextAsUser(UserHandle.of(userId), /*flags=*/0)
+                    .getPackageManager(), aid, packageNames);
         }
 
         @Override
