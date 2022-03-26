@@ -168,8 +168,7 @@ public final class SecureElementService extends Service {
         // listen for events
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(TelephonyManager.ACTION_MULTI_SIM_CONFIG_CHANGED);
-        this.registerReceiver(mMultiSimConfigChangedReceiver, intentFilter,
-                Context.RECEIVER_NOT_EXPORTED);
+        this.registerReceiver(mMultiSimConfigChangedReceiver, intentFilter);
     }
 
     /** Returns the terminal from the Reader name. */
