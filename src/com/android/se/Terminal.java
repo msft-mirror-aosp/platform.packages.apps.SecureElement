@@ -995,5 +995,15 @@ public class Terminal {
         public boolean reset() {
             return Terminal.this.reset();
         }
+
+        @Override
+        public String getInterfaceHash() {
+            return ISecureElementReader.HASH;
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return ISecureElementReader.VERSION;
+        }
     }
 }
