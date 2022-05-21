@@ -152,6 +152,16 @@ public final class SecureElementService extends Service {
                 terminal.dump(writer);
             }
         }
+
+        @Override
+        public String getInterfaceHash() {
+            return ISecureElementService.HASH;
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return ISecureElementService.VERSION;
+        }
     }
 
     private final ISecureElementService.Stub mSecureElementServiceBinder =
@@ -168,8 +178,7 @@ public final class SecureElementService extends Service {
         // listen for events
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(TelephonyManager.ACTION_MULTI_SIM_CONFIG_CHANGED);
-        this.registerReceiver(mMultiSimConfigChangedReceiver, intentFilter,
-                Context.RECEIVER_NOT_EXPORTED);
+        this.registerReceiver(mMultiSimConfigChangedReceiver, intentFilter);
     }
 
     /** Returns the terminal from the Reader name. */
@@ -487,6 +496,16 @@ public final class SecureElementService extends Service {
                 mChannels.add(channel);
             }
             return channel.new SecureElementChannel();
+        }
+
+        @Override
+        public String getInterfaceHash() {
+            return ISecureElementSession.HASH;
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return ISecureElementSession.VERSION;
         }
     }
 
