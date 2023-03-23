@@ -902,6 +902,7 @@ public class Terminal {
         try {
             if (mAidlHal != null) {
                 mAidlHal.reset();
+                return true;
             } else {
                 byte status = mSEHal12.reset();
                 // Successfully trigger reset. HAL service should send onStateChange
