@@ -36,6 +36,7 @@ import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
 import android.os.HwBinder;
+import android.os.IBinder;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -271,9 +272,16 @@ public class Terminal {
         android.hardware.secure_element.V1_1.ISecureElement mSEHal11 = null;
         synchronized (mLock) {
             try {
-                mAidlHal = android.hardware.secure_element.ISecureElement.Stub.asInterface(
-                        ServiceManager.waitForDeclaredService(
-                            "android.hardware.secure_element.ISecureElement/" + mName));
+                String name = "android.hardware.secure_element.ISecureElement/" + mName;
+                IBinder binder = null;
+                if (retryOnFail) {
+                    binder = ServiceManager.waitForDeclaredService(name);
+                } else {
+                    if (ServiceManager.isDeclared(name)) {
+                        binder = ServiceManager.getService(name);
+                    }
+                }
+                mAidlHal = android.hardware.secure_element.ISecureElement.Stub.asInterface(binder);
             } catch (Exception e) {
                 Log.d(mTag, "SE AIDL Hal is not supported");
             }
@@ -670,7 +678,7 @@ public class Terminal {
                 try {
                     responseArray[0] = new LogicalChannelResponse();
                     android.hardware.secure_element.LogicalChannelResponse aidlRs =
-                            mAidlHal.openLogicalChannel(aid, p2);
+                            mAidlHal.openLogicalChannel(aid == null ? new byte[0] : aid, p2);
                     responseArray[0].channelNumber = aidlRs.channelNumber;
                     responseArray[0].selectResponse = byteArrayToArrayList(aidlRs.selectResponse);
                 } catch (RemoteException e) {
@@ -712,7 +720,6 @@ public class Terminal {
             Channel logicalChannel = new Channel(session, this, channelNumber,
                     selectResponse, aid, listener);
             logicalChannel.setChannelAccess(channelAccess);
-
             mChannels.put(channelNumber, logicalChannel);
             return logicalChannel;
         }
@@ -895,6 +902,7 @@ public class Terminal {
         try {
             if (mAidlHal != null) {
                 mAidlHal.reset();
+                return true;
             } else {
                 byte status = mSEHal12.reset();
                 // Successfully trigger reset. HAL service should send onStateChange
