@@ -892,29 +892,32 @@ public class Terminal {
      * Reset the Secure Element. Return true if success, false otherwise.
      */
     public boolean reset() {
-        if (mSEHal12 == null && mAidlHal == null) {
-            return false;
-        }
-        mContext.enforceCallingOrSelfPermission(
+        synchronized (mLock) {
+            if (mSEHal12 == null && mAidlHal == null) {
+                return false;
+            }
+            mContext.enforceCallingOrSelfPermission(
                 android.Manifest.permission.SECURE_ELEMENT_PRIVILEGED_OPERATION,
                 "Need SECURE_ELEMENT_PRIVILEGED_OPERATION permission");
 
-        try {
-            if (mAidlHal != null) {
-                mAidlHal.reset();
-            } else {
-                byte status = mSEHal12.reset();
-                // Successfully trigger reset. HAL service should send onStateChange
-                // after secure element reset and initialization process complete
-                if (status == SecureElementStatus.SUCCESS) {
+            try {
+                if (mAidlHal != null) {
+                    mAidlHal.reset();
                     return true;
+                } else {
+                    byte status = mSEHal12.reset();
+                    // Successfully trigger reset. HAL service should send onStateChange
+                    // after secure element reset and initialization process complete
+                    if (status == SecureElementStatus.SUCCESS) {
+                        return true;
+                    }
+                    Log.e(mTag, "Error resetting terminal " + mName);
                 }
-                Log.e(mTag, "Error resetting terminal " + mName);
+            } catch (ServiceSpecificException e) {
+                Log.e(mTag, "Exception in reset()" + e);
+            } catch (RemoteException e) {
+                Log.e(mTag, "Exception in reset()" + e);
             }
-        } catch (ServiceSpecificException e) {
-            Log.e(mTag, "Exception in reset()" + e);
-        } catch (RemoteException e) {
-            Log.e(mTag, "Exception in reset()" + e);
         }
         return false;
     }
