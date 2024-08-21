@@ -748,8 +748,9 @@ public class Terminal {
                     return false;
                 }
                 return true;
+            } else if (mSEHal == null) {
+                return false;
             }
-
             LogicalChannelResponse[] responseArray = new LogicalChannelResponse[1];
             byte[] status = new byte[1];
             try {
