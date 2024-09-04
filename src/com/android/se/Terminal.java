@@ -748,8 +748,9 @@ public class Terminal {
                     return false;
                 }
                 return true;
+            } else if (mSEHal == null) {
+                return false;
             }
-
             LogicalChannelResponse[] responseArray = new LogicalChannelResponse[1];
             byte[] status = new byte[1];
             try {
@@ -876,8 +877,10 @@ public class Terminal {
         try {
             if (mAidlHal != null) {
                 return mAidlHal.isCardPresent();
-            } else {
+            } else if (mSEHal != null) {
                 return mSEHal.isCardPresent();
+            } else {
+                return false;
             }
         } catch (ServiceSpecificException e) {
             Log.e(mTag, "Error in isSecureElementPresent() " + e);
