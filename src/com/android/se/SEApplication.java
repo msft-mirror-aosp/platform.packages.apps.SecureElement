@@ -18,7 +18,6 @@ package com.android.se;
 
 import android.app.Application;
 import android.content.Intent;
-import android.os.UserHandle;
 
 /**
  * Starts the SecureElementService.
@@ -27,10 +26,7 @@ public class SEApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        // Only start the service if the user is the system user.
-        if (UserHandle.myUserId() == 0) {
-            Intent serviceIntent = new Intent(getApplicationContext(), SecureElementService.class);
-            startService(serviceIntent);
-        }
+        Intent serviceIntent = new Intent(getApplicationContext(), SecureElementService.class);
+        startService(serviceIntent);
     }
 }
